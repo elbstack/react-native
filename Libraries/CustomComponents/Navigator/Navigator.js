@@ -911,16 +911,15 @@ var Navigator = React.createClass({
     var activeAnimationConfigStack = this.state.sceneConfigStack.slice(0, activeLength);
     var nextStack = activeStack.concat([route]);
     var destIndex = nextStack.length - 1;
-    var nextAnimationConfigStack = activeAnimationConfigStack.concat([
-      this.props.configureScene(route),
-    ]);
+    var nextSceneConfig = this.props.configureScene(route);
+    var nextAnimationConfigStack = activeAnimationConfigStack.concat([nextSceneConfig]);
     this._emitWillFocus(nextStack[destIndex]);
     this.setState({
       routeStack: nextStack,
       sceneConfigStack: nextAnimationConfigStack,
     }, () => {
       this._enableScene(destIndex);
-      this._transitionTo(destIndex);
+      this._transitionTo(destIndex, nextSceneConfig.defaultTransitionVelocity);
     });
   },
 
