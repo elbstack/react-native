@@ -6,10 +6,12 @@ LOCAL_MODULE := libreactnative
 
 LOCAL_SRC_FILES := \
   Bridge.cpp \
-  Value.cpp \
-  MethodCall.cpp \
-  JSCHelpers.cpp \
   JSCExecutor.cpp \
+  JSCHelpers.cpp \
+  JSCWebWorker.cpp \
+  JSModulesUnbundle.cpp \
+  MethodCall.cpp \
+  Value.cpp \
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/..
 LOCAL_EXPORT_C_INCLUDES := $(LOCAL_C_INCLUDES)

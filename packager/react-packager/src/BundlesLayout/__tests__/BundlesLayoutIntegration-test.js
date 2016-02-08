@@ -36,6 +36,7 @@ describe('BundlesLayout', () => {
     'polyfills/String.prototype.es6.js',
     'polyfills/Array.prototype.es6.js',
     'polyfills/Array.es6.js',
+    'polyfills/Object.es7.js',
     'polyfills/babelHelpers.js',
   ];
   const baseFs = getBaseFs();
@@ -95,7 +96,7 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */`,
         }
       });
@@ -116,12 +117,12 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */
-            require("a");`,
+            require("xa");`,
           'a.js': `
             /**
-             * @providesModule a
+             * @providesModule xa
              */`,
         }
       });
@@ -142,12 +143,12 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */
-            System.import("a");`,
+            ${'System.import'}("xa");`,
           'a.js': `
             /**,
-             * @providesModule a
+             * @providesModule xa
              */`,
         }
       });
@@ -172,17 +173,17 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */
-            System.import("a");
-            System.import("b");`,
+            ${'System.import'}("xa");
+            ${'System.import'}("xb");`,
           'a.js': `
             /**,
-             * @providesModule a
+             * @providesModule xa
              */`,
           'b.js': `
             /**
-             * @providesModule b
+             * @providesModule xb
              */`,
         }
       });
@@ -213,17 +214,17 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */
-            require("a");
-            System.import("b");`,
+            require("xa");
+            ${'System.import'}("xb");`,
           'a.js': `
             /**,
-             * @providesModule a
+             * @providesModule xa
              */`,
           'b.js': `
             /**
-             * @providesModule b
+             * @providesModule xb
              */`,
         }
       });
@@ -248,22 +249,22 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */
-            System.import("a");`,
+            ${'System.import'}("xa");`,
           'a.js': `
             /**,
-             * @providesModule a
+             * @providesModule xa
              */,
-            require("b");`,
+            require("xb");`,
           'b.js': `
             /**
-             * @providesModule b
+             * @providesModule xb
              */
-            require("c");`,
+            require("xc");`,
           'c.js': `
             /**
-             * @providesModule c
+             * @providesModule xc
              */`,
         }
       });
@@ -288,23 +289,23 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */
-            System.import("a");
-            System.import("b");`,
+            ${'System.import'}("xa");
+            ${'System.import'}("xb");`,
           'a.js': `
             /**,
-             * @providesModule a
+             * @providesModule xa
              */,
-            require("c");`,
+            require("xc");`,
           'b.js': `
             /**
-             * @providesModule b
+             * @providesModule xb
              */
-            require("c");`,
+            require("xc");`,
           'c.js': `
             /**
-             * @providesModule c
+             * @providesModule xc
              */`,
         }
       });
@@ -336,22 +337,22 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */
-            System.import("a");`,
+            ${'System.import'}("xa");`,
           'a.js': `
             /**,
-             * @providesModule a
+             * @providesModule xa
              */,
-            System.import("b");`,
+            ${'System.import'}("xb");`,
           'b.js': `
             /**
-             * @providesModule b
+             * @providesModule xb
              */
-            require("c");`,
+            require("xc");`,
           'c.js': `
             /**
-             * @providesModule c
+             * @providesModule xc
              */`,
         }
       });
@@ -382,12 +383,12 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */
-            System.import("a");`,
+            ${'System.import'}("xa");`,
           'a.js':`
             /**,
-             * @providesModule a
+             * @providesModule xa
              */,
             require("./img.png");`,
           'img.png': '',
@@ -414,18 +415,18 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */
-            System.import("a");
-            System.import("b");`,
+            ${'System.import'}("xa");
+            ${'System.import'}("xb");`,
           'a.js':`
             /**,
-             * @providesModule a
+             * @providesModule xa
              */,
             require("./img.png");`,
           'b.js':`
             /**,
-             * @providesModule b
+             * @providesModule xb
              */,
             require("./img.png");`,
           'img.png': '',
@@ -459,9 +460,9 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */
-            System.import("./img.png");`,
+            ${'System.import'}("./img.png");`,
           'img.png': '',
         }
       });
@@ -486,12 +487,12 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */
-            System.import("a");`,
+            ${'System.import'}("xa");`,
           'a.js':`
             /**,
-             * @providesModule a
+             * @providesModule xa
              */,
             require("image!img");`,
           'img.png': '',
@@ -518,9 +519,9 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */
-            System.import("image!img");`,
+            ${'System.import'}("image!img");`,
           'img.png': '',
         }
       });
@@ -545,9 +546,9 @@ describe('BundlesLayout', () => {
         'root': {
           'index.js': `
             /**
-             * @providesModule index
+             * @providesModule xindex
              */
-            System.import("aPackage");`,
+            ${'System.import'}("aPackage");`,
           'aPackage': {
             'package.json': JSON.stringify({
               name: 'aPackage',

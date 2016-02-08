@@ -106,7 +106,7 @@ public class NativeViewHierarchyManager {
     mLayoutAnimationEnabled = enabled;
   }
 
-  public void updateProperties(int tag, CatalystStylesDiffMap props) {
+  public void updateProperties(int tag, ReactStylesDiffMap props) {
     UiThreadUtil.assertOnUiThread();
 
     ViewManager viewManager = resolveViewManager(tag);
@@ -190,7 +190,7 @@ public class NativeViewHierarchyManager {
       ThemedReactContext themedContext,
       int tag,
       String className,
-      @Nullable CatalystStylesDiffMap initialProps) {
+      @Nullable ReactStylesDiffMap initialProps) {
     UiThreadUtil.assertOnUiThread();
     SystraceMessage.beginSection(
         Systrace.TRACE_TAG_REACT_VIEW,
@@ -424,9 +424,7 @@ public class NativeViewHierarchyManager {
     UiThreadUtil.assertOnUiThread();
     if (!mRootTags.get(view.getId())) {
       // For non-root views we notify viewmanager with {@link ViewManager#onDropInstance}
-      resolveViewManager(view.getId()).onDropViewInstance(
-          (ThemedReactContext) view.getContext(),
-          view);
+      resolveViewManager(view.getId()).onDropViewInstance(view);
     }
     ViewManager viewManager = mTagsToViewManagers.get(view.getId());
     if (view instanceof ViewGroup && viewManager instanceof ViewGroupManager) {

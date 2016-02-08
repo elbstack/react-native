@@ -1,5 +1,6 @@
 // Copyright 2004-present Facebook. All Rights Reserved.
 
+#include <android/asset_manager_jni.h>
 #include <android/input.h>
 #include <fb/log.h>
 #include <folly/json.h>
@@ -13,6 +14,8 @@
 #include <react/Bridge.h>
 #include <react/Executor.h>
 #include <react/JSCExecutor.h>
+#include <react/JSModulesUnbundle.h>
+#include "JNativeRunnable.h"
 #include "JSLoader.h"
 #include "ReadableNativeArray.h"
 #include "ProxyExecutor.h"
@@ -642,15 +645,33 @@ static void executeApplicationScript(
   }
 }
 
+static void loadApplicationUnbundle(
+    const RefPtr<Bridge>& bridge,
+    AAssetManager *assetManager,
+    const std::string& startupCode,
+    const std::string& startupFileName) {
+
+  try {
+    // Load the application unbundle and collect/dispatch any native calls that might have occured
+    bridge->loadApplicationUnbundle(
+      JSModulesUnbundle(assetManager, startupFileName),
+      startupCode,
+      startupFileName);
+    bridge->flush();
+  } catch (...) {
+    translatePendingCppExceptionToJavaException();
+  }
+}
+
 static void loadScriptFromAssets(JNIEnv* env, jobject obj, jobject assetManager,
                                  jstring assetName) {
   jclass markerClass = env->FindClass("com/facebook/react/bridge/ReactMarker");
-
+  auto manager = AAssetManager_fromJava(env, assetManager);
   auto bridge = extractRefPtr<Bridge>(env, obj);
   auto assetNameStr = fromJString(env, assetName);
 
   env->CallStaticVoidMethod(markerClass, gLogMarkerMethod, env->NewStringUTF("loadScriptFromAssets_start"));
-  auto script = react::loadScriptFromAssets(env, assetManager, assetNameStr);
+  auto script = react::loadScriptFromAssets(manager, assetNameStr);
   #ifdef WITH_FBSYSTRACE
   FbSystraceSection s(TRACE_TAG_REACT_CXX_BRIDGE, "reactbridge_jni_"
     "executeApplicationScript",
@@ -658,7 +679,11 @@ static void loadScriptFromAssets(JNIEnv* env, jobject obj, jobject assetManager,
   #endif
 
   env->CallStaticVoidMethod(markerClass, gLogMarkerMethod, env->NewStringUTF("loadScriptFromAssets_read"));
-  executeApplicationScript(bridge, script, assetNameStr);
+  if (JSModulesUnbundle::isUnbundle(manager, assetNameStr)) {
+    loadApplicationUnbundle(bridge, manager, script, assetNameStr);
+  } else {
+    executeApplicationScript(bridge, script, assetNameStr);
+  }
   if (env->ExceptionCheck()) {
     return;
   }
@@ -780,6 +805,8 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     NativeArray::registerNatives();
     ReadableNativeArray::registerNatives();
     WritableNativeArray::registerNatives();
+    JNativeRunnable::registerNatives();
+    registerJSLoaderNatives();
 
     registerNatives("com/facebook/react/bridge/NativeMap", {
         makeNativeMethod("initialize", map::initialize),
@@ -861,7 +888,7 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
     });
 
-    jclass nativeRunnableClass = env->FindClass("com/facebook/react/bridge/queue/NativeRunnable");
+    jclass nativeRunnableClass = env->FindClass("com/facebook/react/bridge/queue/NativeRunnableDeprecated");
     runnable::gNativeRunnableClass = (jclass)env->NewGlobalRef(nativeRunnableClass);
     runnable::gNativeRunnableCtor = env->GetMethodID(nativeRunnableClass, "<init>", "()V");
     wrap_alias(nativeRunnableClass)->registerNatives({

@@ -22,7 +22,6 @@ Our provisional plan for common views and modules includes:
 #### Views
 
 ```
-ART
 Maps
 Modal
 Spinner (http://developer.android.com/guide/topics/ui/controls/spinner.html)
@@ -32,7 +31,6 @@ Slider (known as SeekBar)
 #### Modules
 
 ```
-App State
 Camera Roll
 Media
 PushNotificationIOS
@@ -46,14 +44,13 @@ There are properties that work on one platform only, either because they can inh
 
 There are known cases where the APIs could be made more consistent across iOS and Android:
 
-- `<AndroidViewPager>` and `<ScrollView pagingEnabled={true}>` on iOS do a similar thing. We might want to unify them to `<ViewPager>`.
-- It might be possible to bring `LinkingIOS` and `IntentAndroid` closer together.
+- `<ViewPagerAndroid>` and `<ScrollView pagingEnabled={true}>` on iOS do a similar thing. We might want to unify them to `<ViewPager>`.
 - `ActivityIndicator` could render a native spinning indicator on both platforms (currently this is done using `ActivityIndicatorIOS` on iOS and `ProgressBarAndroid` on Android).
 - `ProgressBar` could render a horizontal progress bar on both platforms (on iOS this is `ProgressViewIOS`, on Android it's `ProgressBarAndroid`).
 
 ### Using 3rd-party native modules
 
-There are many awesome 3rd-party modules: https://react.parts/native
+There are many awesome 3rd-party modules: [JS.coach](https://js.coach/react-native)
 
 Adding these to your apps should be made simpler. Here's [an example](https://github.com/apptailor/react-native-google-signin) how this is done currently.
 

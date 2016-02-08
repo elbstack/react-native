@@ -15,7 +15,15 @@ const extractRequires = require('./lib/extractRequires');
 
 class Module {
 
-  constructor({ file, fastfs, moduleCache, cache, extractor, depGraphHelpers }) {
+  constructor({
+    file,
+    fastfs,
+    moduleCache,
+    cache,
+    extractor = extractRequires,
+    transformCode,
+    depGraphHelpers,
+  }) {
     if (!isAbsolutePath(file)) {
       throw new Error('Expected file to be absolute path but got ' + file);
     }
@@ -27,20 +35,29 @@ class Module {
     this._moduleCache = moduleCache;
     this._cache = cache;
     this._extractor = extractor;
+    this._transformCode = transformCode;
     this._depGraphHelpers = depGraphHelpers;
   }
 
   isHaste() {
-    return this.read().then(data => !!data.id);
+    return this._cache.get(
+      this.path,
+      'isHaste',
+      () => this._readDocBlock().then(data => !!data.id)
+    );
+  }
+
+  getCode() {
+    return this.read().then(({code}) => code);
   }
 
   getName() {
     return this._cache.get(
       this.path,
       'name',
-      () => this.read().then(data => {
-        if (data.id) {
-          return data.id;
+      () => this._readDocBlock().then(({id}) => {
+        if (id) {
+          return id;
         }
 
         const p = this.getPackage();
@@ -67,49 +84,88 @@ class Module {
   }
 
   getDependencies() {
-    return this.read().then(data => data.dependencies);
+    return this._cache.get(
+      this.path,
+      'dependencies',
+      () => this.read().then(data => data.dependencies)
+    );
   }
 
   getAsyncDependencies() {
-    return this.read().then(data => data.asyncDependencies);
+    return this._cache.get(
+      this.path,
+      'asyncDependencies',
+      () => this.read().then(data => data.asyncDependencies)
+    );
   }
 
   invalidate() {
     this._cache.invalidate(this.path);
   }
 
-  read() {
-    if (!this._reading) {
-      this._reading = this._fastfs.readFile(this.path).then(content => {
-        const data = {};
+  _parseDocBlock(docBlock) {
+    // Extract an id for the module if it's using @providesModule syntax
+    // and if it's NOT in node_modules (and not a whitelisted node_module).
+    // This handles the case where a project may have a dep that has @providesModule
+    // docblock comments, but doesn't want it to conflict with whitelisted @providesModule
+    // modules, such as react-haste, fbjs-haste, or react-native or with non-dependency,
+    // project-specific code that is using @providesModule.
+    const moduleDocBlock = docblock.parseAsObject(docBlock);
+    const provides = moduleDocBlock.providesModule || moduleDocBlock.provides;
 
-        // Set an id on the module if it's using @providesModule syntax
-        // and if it's NOT in node_modules (and not a whitelisted node_module).
-        // This handles the case where a project may have a dep that has @providesModule
-        // docblock comments, but doesn't want it to conflict with whitelisted @providesModule
-        // modules, such as react-haste, fbjs-haste, or react-native or with non-dependency,
-        // project-specific code that is using @providesModule.
-        const moduleDocBlock = docblock.parseAsObject(content);
-        if (!this._depGraphHelpers.isNodeModulesDir(this.path) &&
-            (moduleDocBlock.providesModule || moduleDocBlock.provides)) {
-          data.id = /^(\S*)/.exec(
-            moduleDocBlock.providesModule || moduleDocBlock.provides
-          )[1];
-        }
+    const id = provides && !this._depGraphHelpers.isNodeModulesDir(this.path)
+        ? /^\S+/.exec(provides)[0]
+        : undefined;
+    return [id, moduleDocBlock];
+  }
 
-        // Ignore requires in generated code. An example of this is prebuilt
-        // files like the SourceMap library.
-        if ('extern' in moduleDocBlock) {
-          data.dependencies = [];
-        } else {
-          var dependencies = (this._extractor || extractRequires)(content).deps;
-          data.dependencies = dependencies.sync;
-          data.asyncDependencies = dependencies.async;
-        }
-
-        return data;
-      });
+  _readDocBlock() {
+    const reading = this._reading || this._docBlock;
+    if (reading) {
+      return reading;
     }
+    this._docBlock = this._fastfs.readWhile(this.path, whileInDocBlock)
+      .then(docBlock => {
+        const [id] = this._parseDocBlock(docBlock);
+        return {id};
+      });
+    return this._docBlock;
+  }
+
+  read() {
+    if (this._reading) {
+      return this._reading;
+    }
+
+    this._reading = this._fastfs.readFile(this.path).then(content => {
+      const [id, moduleDocBlock] = this._parseDocBlock(content);
+
+      // Ignore requires in JSON files or generated code. An example of this
+      // is prebuilt files like the SourceMap library.
+      if (this.isJSON() || 'extern' in moduleDocBlock) {
+        return {
+          id,
+          dependencies: [],
+          asyncDependencies: [],
+          code: content,
+        };
+      } else {
+        const transformCode = this._transformCode;
+        const codePromise = transformCode
+            ? transformCode(this, content)
+            : Promise.resolve({code: content});
+
+        return codePromise.then(({code, dependencies, asyncDependencies}) => {
+          const {deps} = this._extractor(code);
+          return {
+            id,
+            code,
+            dependencies: dependencies || deps.sync,
+            asyncDependencies: asyncDependencies || deps.async,
+          };
+        });
+      }
+    });
 
     return this._reading;
   }
@@ -144,6 +200,21 @@ class Module {
       path: this.path,
     };
   }
+}
+
+function whileInDocBlock(chunk, i, result) {
+  // consume leading whitespace
+  if (!/\S/.test(result)) {
+    return true;
+  }
+
+  // check for start of doc block
+  if (!/^\s*\/(\*{2}|\*?$)/.test(result)) {
+    return false;
+  }
+
+  // check for end of doc block
+  return !/\*\//.test(result);
 }
 
 module.exports = Module;

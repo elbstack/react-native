@@ -175,9 +175,7 @@ RCT_EXTERN NSArray<Class> *RCTGetModuleClasses(void);
   dispatch_group_notify(initModulesAndLoadSource, dispatch_get_main_queue(), ^{
     RCTBatchedBridge *strongSelf = weakSelf;
     if (sourceCode && strongSelf.loading) {
-      dispatch_async(bridgeQueue, ^{
-        [weakSelf executeSourceCode:sourceCode];
-      });
+      [strongSelf executeSourceCode:sourceCode];
     }
   });
 }
@@ -191,7 +189,7 @@ RCT_EXTERN NSArray<Class> *RCTGetModuleClasses(void);
   (void)cookie;
 
   RCTSourceLoadBlock onSourceLoad = ^(NSError *error, NSData *source) {
-    RCTProfileEndAsyncEvent(0, @"init,download", cookie, @"JavaScript download", nil);
+    RCTProfileEndAsyncEvent(0, @"native", cookie, @"JavaScript download", @"JS async", nil);
     RCTPerformanceLoggerEnd(RCTPLScriptDownload);
 
     _onSourceLoad(error, source);
@@ -220,6 +218,14 @@ RCT_EXTERN NSArray<Class> *RCTGetModuleClasses(void);
                 "trying to access a module too early in the startup procedure.");
   }
   return _moduleClassesByID;
+}
+
+/**
+ * Used by RCTUIManager
+ */
+- (RCTModuleData *)moduleDataForName:(NSString *)moduleName
+{
+  return _moduleDataByName[moduleName];
 }
 
 - (id)moduleForName:(NSString *)moduleName
@@ -327,14 +333,7 @@ RCT_EXTERN NSArray<Class> *RCTGetModuleClasses(void);
 
   for (RCTModuleData *moduleData in _moduleDataByID) {
     if (moduleData.hasInstance) {
-      [moduleData methodQueue]; // initialize the queue
-    }
-  }
-
-  for (RCTModuleData *moduleData in _moduleDataByID) {
-    if (moduleData.hasInstance) {
-      [self registerModuleForFrameUpdates:moduleData.instance
-                           withModuleData:moduleData];
+      [moduleData finishSetupForInstance];
     }
   }
 
@@ -483,6 +482,7 @@ RCT_EXTERN NSArray<Class> *RCTGetModuleClasses(void);
   }
 
   _loading = NO;
+  [_javaScriptExecutor invalidate];
 
   [[NSNotificationCenter defaultCenter]
    postNotificationName:RCTJavaScriptDidFailToLoadNotification
@@ -562,6 +562,7 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithBundleURL:(__unused NSURL *)bundleUR
   }
 
   RCTAssertMainThread();
+  RCTAssert(_javaScriptExecutor != nil, @"Can't complete invalidation without a JS executor");
 
   _loading = NO;
   _valid = NO;
@@ -597,11 +598,13 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithBundleURL:(__unused NSURL *)bundleUR
       if (RCTProfileIsProfiling()) {
         RCTProfileUnhookModules(self);
       }
+
       _moduleDataByName = nil;
       _moduleDataByID = nil;
       _moduleClassesByID = nil;
       _modulesByName_DEPRECATED = nil;
       _frameUpdateObservers = nil;
+      _pendingCalls = nil;
 
     }];
   });
@@ -625,6 +628,8 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithBundleURL:(__unused NSURL *)bundleUR
   /**
    * AnyThread
    */
+
+  RCT_PROFILE_BEGIN_EVENT(0, @"-[RCTBatchedBridge enqueueJSCall:]", nil);
 
   NSArray<NSString *> *ids = [moduleDotMethod componentsSeparatedByString:@"."];
 
@@ -651,6 +656,8 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithBundleURL:(__unused NSURL *)bundleUR
       [strongSelf _actuallyInvokeAndProcessModule:module method:method arguments:args ?: @[]];
     }
   }];
+
+  RCT_PROFILE_END_EVENT(0, @"", nil);
 }
 
 /**
@@ -840,8 +847,7 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithBundleURL:(__unused NSURL *)bundleUR
 
     dispatch_block_t block = ^{
       RCTProfileEndFlowEvent();
-
-      RCT_PROFILE_BEGIN_EVENT(0, RCTCurrentThreadName(), nil);
+      RCT_PROFILE_BEGIN_EVENT(0, @"-[RCTBatchedBridge handleBuffer:]", nil);
 
       NSOrderedSet *calls = [buckets objectForKey:queue];
       @autoreleasepool {
@@ -937,14 +943,13 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithBundleURL:(__unused NSURL *)bundleUR
 - (void)_jsThreadUpdate:(CADisplayLink *)displayLink
 {
   RCTAssertJSThread();
-  RCT_PROFILE_BEGIN_EVENT(0, @"DispatchFrameUpdate", nil);
+  RCT_PROFILE_BEGIN_EVENT(0, @"-[RCTBatchedBridge _jsThreadUpdate:]", nil);
 
   RCTFrameUpdate *frameUpdate = [[RCTFrameUpdate alloc] initWithDisplayLink:displayLink];
   for (RCTModuleData *moduleData in _frameUpdateObservers) {
     id<RCTFrameUpdateObserver> observer = (id<RCTFrameUpdateObserver>)moduleData.instance;
     if (!observer.paused) {
       RCTProfileBeginFlowEvent();
-
       [self dispatchBlock:^{
         RCTProfileEndFlowEvent();
         [observer didUpdateFrame:frameUpdate];
