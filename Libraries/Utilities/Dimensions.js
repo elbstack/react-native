@@ -32,21 +32,22 @@ if (dimensions && dimensions.windowPhysicalPixels) {
     scale: windowPhysicalPixels.scale,
     fontScale: windowPhysicalPixels.fontScale,
   };
-  if (Platform.OS === 'android') {
-    // Screen and window dimensions are different on android
-    var screenPhysicalPixels = dimensions.screenPhysicalPixels;
-    dimensions.screen = {
-      width: screenPhysicalPixels.width / screenPhysicalPixels.scale,
-      height: screenPhysicalPixels.height / screenPhysicalPixels.scale,
-      scale: screenPhysicalPixels.scale,
-      fontScale: screenPhysicalPixels.fontScale,
-    };
-
-    // delete so no callers rely on this existing
-    delete dimensions.screenPhysicalPixels;
-  } else {
+  // https://github.com/facebook/react-native/issues/5963
+  //if (Platform.OS === 'android') {
+  //  // Screen and window dimensions are different on android
+  //  var screenPhysicalPixels = dimensions.screenPhysicalPixels;
+  //  dimensions.screen = {
+  //    width: screenPhysicalPixels.width / screenPhysicalPixels.scale,
+  //    height: screenPhysicalPixels.height / screenPhysicalPixels.scale,
+  //    scale: screenPhysicalPixels.scale,
+  //    fontScale: screenPhysicalPixels.fontScale,
+  //  };
+  //
+  //  // delete so no callers rely on this existing
+  //  delete dimensions.screenPhysicalPixels;
+  //} else {
     dimensions.screen = dimensions.window;
-  }
+  //}
   // delete so no callers rely on this existing
   delete dimensions.windowPhysicalPixels;
 }
