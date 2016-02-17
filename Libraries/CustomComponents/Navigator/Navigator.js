@@ -242,6 +242,11 @@ var Navigator = React.createClass({
     ),
 
     /**
+     * Optionally provide a callback that as executed when touching the current scene
+     */
+    onTouchStart: PropTypes.func,
+
+    /**
      * Optionally provide a navigation bar that persists across scene
      * transitions
      */
@@ -602,6 +607,9 @@ var Navigator = React.createClass({
   },
 
   _handleTouchStart: function() {
+    if (this.props.onTouchStart) {
+      this.props.onTouchStart();
+    }
     this._eligibleGestures = GESTURE_ACTIONS;
   },
 
