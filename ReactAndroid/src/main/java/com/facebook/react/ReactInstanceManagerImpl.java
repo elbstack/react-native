@@ -58,8 +58,7 @@ import com.facebook.react.common.ReactConstants;
 import com.facebook.react.common.annotations.VisibleForTesting;
 import com.facebook.react.devsupport.DevServerHelper;
 import com.facebook.react.devsupport.DevSupportManager;
-import com.facebook.react.devsupport.DevSupportManagerImpl;
-import com.facebook.react.devsupport.DisabledDevSupportManager;
+import com.facebook.react.devsupport.DevSupportManagerFactory;
 import com.facebook.react.devsupport.ReactInstanceDevCommandsHandler;
 import com.facebook.react.modules.core.DefaultHardwareBackBtnHandler;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
@@ -70,6 +69,8 @@ import com.facebook.react.uimanager.UIManagerModule;
 import com.facebook.react.uimanager.ViewManager;
 import com.facebook.soloader.SoLoader;
 import com.facebook.systrace.Systrace;
+
+import static com.facebook.react.bridge.ReactMarkerConstants.*;
 
 /**
  * This class is managing instances of {@link CatalystInstance}. It expose a way to configure
@@ -93,8 +94,8 @@ import com.facebook.systrace.Systrace;
   /* should only be accessed from main thread (UI thread) */
   private final List<ReactRootView> mAttachedRootViews = new ArrayList<>();
   private LifecycleState mLifecycleState;
-  private boolean mIsContextInitAsyncTaskRunning;
   private @Nullable ReactContextInitParams mPendingReactContextInitParams;
+  private @Nullable ReactContextInitAsyncTask mReactContextInitAsyncTask;
 
   /* accessed from any thread */
   private @Nullable String mJSBundleFile; /* path to JS bundle on file system */
@@ -195,7 +196,7 @@ import com.facebook.systrace.Systrace;
       } catch (Exception e) {
         mDevSupportManager.handleException(e);
       } finally {
-        mIsContextInitAsyncTaskRunning = false;
+        mReactContextInitAsyncTask = null;
       }
 
       // Handle enqueued request to re-initialize react context.
@@ -204,6 +205,17 @@ import com.facebook.systrace.Systrace;
             mPendingReactContextInitParams.getJsExecutorFactory(),
             mPendingReactContextInitParams.getJsBundleLoader());
         mPendingReactContextInitParams = null;
+      }
+    }
+
+    @Override
+    protected void onCancelled(Result<ReactApplicationContext> reactApplicationContextResult) {
+      try {
+        mMemoryPressureRouter.destroy(reactApplicationContextResult.get());
+      } catch (Exception e) {
+        FLog.w(ReactConstants.TAG, "Caught exception after cancelling react context init", e);
+      } finally {
+        mReactContextInitAsyncTask = null;
       }
     }
   }
@@ -262,15 +274,11 @@ import com.facebook.systrace.Systrace;
     mJSMainModuleName = jsMainModuleName;
     mPackages = packages;
     mUseDeveloperSupport = useDeveloperSupport;
-    if (mUseDeveloperSupport) {
-      mDevSupportManager = new DevSupportManagerImpl(
-          applicationContext,
-          mDevInterface,
-          mJSMainModuleName,
-          useDeveloperSupport);
-    } else {
-      mDevSupportManager = new DisabledDevSupportManager();
-    }
+    mDevSupportManager = DevSupportManagerFactory.create(
+        applicationContext,
+        mDevInterface,
+        mJSMainModuleName,
+        useDeveloperSupport);
     mBridgeIdleDebugListener = bridgeIdleDebugListener;
     mLifecycleState = initialLifecycleState;
     mUIImplementationProvider = uiImplementationProvider;
@@ -495,6 +503,10 @@ import com.facebook.systrace.Systrace;
   public void onDestroy() {
     UiThreadUtil.assertOnUiThread();
 
+    if (mReactContextInitAsyncTask != null) {
+      mReactContextInitAsyncTask.cancel(true);
+    }
+
     mMemoryPressureRouter.destroy(mApplicationContext);
     if (mUseDeveloperSupport) {
       mDevSupportManager.setDevSupportEnabled(false);
@@ -544,7 +556,7 @@ import com.facebook.systrace.Systrace;
 
     // If react context is being created in the background, JS application will be started
     // automatically when creation completes, as root view is part of the attached root view list.
-    if (!mIsContextInitAsyncTaskRunning && mCurrentReactContext != null) {
+    if (mReactContextInitAsyncTask == null && mCurrentReactContext != null) {
       attachMeasuredRootViewToInstance(rootView, mCurrentReactContext.getCatalystInstance());
     }
   }
@@ -616,11 +628,10 @@ import com.facebook.systrace.Systrace;
 
     ReactContextInitParams initParams =
         new ReactContextInitParams(jsExecutorFactory, jsBundleLoader);
-    if (!mIsContextInitAsyncTaskRunning) {
+    if (mReactContextInitAsyncTask == null) {
       // No background task to create react context is currently running, create and execute one.
-      ReactContextInitAsyncTask initTask = new ReactContextInitAsyncTask();
-      initTask.execute(initParams);
-      mIsContextInitAsyncTaskRunning = true;
+      mReactContextInitAsyncTask = new ReactContextInitAsyncTask();
+      mReactContextInitAsyncTask.execute(initParams);
     } else {
       // Background task is currently running, queue up most recent init params to recreate context
       // once task completes.
@@ -700,7 +711,7 @@ import com.facebook.systrace.Systrace;
       JavaScriptExecutor jsExecutor,
       JSBundleLoader jsBundleLoader) {
     FLog.i(ReactConstants.TAG, "Creating react context.");
-    ReactMarker.logMarker("CREATE_REACT_CONTEXT_START");
+    ReactMarker.logMarker(CREATE_REACT_CONTEXT_START);
     mSourceUrl = jsBundleLoader.getSourceUrl();
     NativeModuleRegistry.Builder nativeRegistryBuilder = new NativeModuleRegistry.Builder();
     JavaScriptModulesConfig.Builder jsModulesBuilder = new JavaScriptModulesConfig.Builder();
@@ -710,6 +721,7 @@ import com.facebook.systrace.Systrace;
       reactContext.setNativeModuleCallExceptionHandler(mDevSupportManager);
     }
 
+    ReactMarker.logMarker(PROCESS_PACKAGES_START);
     Systrace.beginSection(
         Systrace.TRACE_TAG_REACT_JAVA_BRIDGE,
         "createAndProcessCoreModulesPackage");
@@ -732,21 +744,26 @@ import com.facebook.systrace.Systrace;
         Systrace.endSection(Systrace.TRACE_TAG_REACT_JAVA_BRIDGE);
       }
     }
+    ReactMarker.logMarker(PROCESS_PACKAGES_END);
 
+    ReactMarker.logMarker(BUILD_NATIVE_MODULE_REGISTRY_START);
     Systrace.beginSection(Systrace.TRACE_TAG_REACT_JAVA_BRIDGE, "buildNativeModuleRegistry");
     NativeModuleRegistry nativeModuleRegistry;
     try {
        nativeModuleRegistry = nativeRegistryBuilder.build();
     } finally {
       Systrace.endSection(Systrace.TRACE_TAG_REACT_JAVA_BRIDGE);
+      ReactMarker.logMarker(BUILD_NATIVE_MODULE_REGISTRY_END);
     }
 
+    ReactMarker.logMarker(BUILD_JS_MODULE_CONFIG_START);
     Systrace.beginSection(Systrace.TRACE_TAG_REACT_JAVA_BRIDGE, "buildJSModuleConfig");
     JavaScriptModulesConfig javaScriptModulesConfig;
     try {
       javaScriptModulesConfig = jsModulesBuilder.build();
     } finally {
       Systrace.endSection(Systrace.TRACE_TAG_REACT_JAVA_BRIDGE);
+      ReactMarker.logMarker(BUILD_JS_MODULE_CONFIG_END);
     }
 
     NativeModuleCallExceptionHandler exceptionHandler = mNativeModuleCallExceptionHandler != null
@@ -760,12 +777,14 @@ import com.facebook.systrace.Systrace;
         .setJSBundleLoader(jsBundleLoader)
         .setNativeModuleCallExceptionHandler(exceptionHandler);
 
+    ReactMarker.logMarker(CREATE_CATALYST_INSTANCE_START);
     Systrace.beginSection(Systrace.TRACE_TAG_REACT_JAVA_BRIDGE, "createCatalystInstance");
     CatalystInstance catalystInstance;
     try {
       catalystInstance = catalystInstanceBuilder.build();
     } finally {
       Systrace.endSection(Systrace.TRACE_TAG_REACT_JAVA_BRIDGE);
+      ReactMarker.logMarker(CREATE_CATALYST_INSTANCE_END);
     }
 
     if (mBridgeIdleDebugListener != null) {
@@ -774,14 +793,16 @@ import com.facebook.systrace.Systrace;
 
     reactContext.initializeWithInstance(catalystInstance);
 
+    ReactMarker.logMarker(RUN_JS_BUNDLE_START);
     Systrace.beginSection(Systrace.TRACE_TAG_REACT_JAVA_BRIDGE, "runJSBundle");
     try {
       catalystInstance.runJSBundle();
     } finally {
       Systrace.endSection(Systrace.TRACE_TAG_REACT_JAVA_BRIDGE);
+      ReactMarker.logMarker(RUN_JS_BUNDLE_END);
     }
 
-    ReactMarker.logMarker("CREATE_REACT_CONTEXT_END");
+    ReactMarker.logMarker(CREATE_REACT_CONTEXT_END);
     return reactContext;
   }
 

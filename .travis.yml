@@ -69,3 +69,4 @@ branches:
   only:
     - master
     - /^.*-stable$/
+    

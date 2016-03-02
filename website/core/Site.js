@@ -19,6 +19,7 @@ var Site = React.createClass({
     const version = Metadata.config.RN_VERSION;
     var basePath = '/react-native/' + (path ? path + '/' : '');
     var title = this.props.title ? this.props.title + ' – ' : '';
+    var currentYear = (new Date()).getFullYear();
     title += 'React Native | A framework for building native apps using React';
     return (
       <html>
@@ -62,7 +63,7 @@ var Site = React.createClass({
             {this.props.children}
 
             <footer className="wrap">
-              <div className="center">© 2015 Facebook Inc.</div>
+              <div className="center">© {currentYear} Facebook Inc.</div>
             </footer>
           </div>
 

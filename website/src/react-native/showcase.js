@@ -167,6 +167,12 @@ var apps = [
     author: 'CBS Sports',
   },
   {
+    name: 'Choke - Rap Battle With Friends',
+    icon: 'http://a3.mzstatic.com/us/r30/Purple49/v4/3e/83/85/3e8385d8-140f-da38-a100-1393cef3e816/icon175x175.png',
+    link: 'https://itunes.apple.com/us/app/choke-rap-battle-with-friends/id1077937445?ls=1&mt=8',
+    author: 'Henry Kirkness',
+  },
+  {
     name: 'Codementor - Live 1:1 Expert Developer Help',
     icon: 'http://a1.mzstatic.com/us/r30/Purple3/v4/db/cf/35/dbcf3523-bac7-0f54-c6a8-a80bf4f43c38/icon175x175.jpeg',
     link: 'https://www.codementor.io/downloads',
@@ -198,10 +204,11 @@ var apps = [
     author: 'Genki Takiuchi (s21g Inc.)',
   },
   {
-    name: 'DropBot',
-    icon: 'http://a2.mzstatic.com/us/r30/Purple69/v4/fb/df/73/fbdf73e0-22d2-c936-3115-1defa195acba/icon175x175.png',
-    link:  'https://itunes.apple.com/us/app/dropbot-phone-replacement/id1000855694?mt=8',
-    author: 'Peach Labs',
+    name: 'Fixt',
+    icon: 'http://a5.mzstatic.com/us/r30/Purple69/v4/46/bc/66/46bc66a2-7775-4d24-235d-e1fe28d55d7f/icon175x175.png',
+    linkAppStore:  'https://itunes.apple.com/us/app/dropbot-phone-replacement/id1000855694?mt=8',
+    linkPlayStore:  'https://play.google.com/store/apps/details?id=co.fixt',
+    author: 'Fixt',
   },
   {
     name: 'Due',
@@ -368,6 +375,12 @@ var apps = [
     icon: 'http://is5.mzstatic.com/image/pf/us/r30/Purple4/v4/e8/3f/7c/e83f7cb3-2602-f8e8-de9a-ce0a775a4a14/mzl.hmdjhfai.png',
     link: 'https://itunes.apple.com/us/app/mr.-dapper-men-fashion-app/id989735184?ls=1&mt=8',
     author: 'wei ping woon',
+  },
+  {
+    name: 'MyPED',
+    icon: 'http://a2.mzstatic.com/eu/r30/Purple69/v4/88/1f/fb/881ffb3b-7986-d427-7fcf-eb5920a883af/icon175x175.png',
+    link: 'https://itunes.apple.com/it/app/myped/id1064907558?ls=1&mt=8',
+    author: 'Impronta Advance',
   },
   {
     name: 'Nalathe Kerala',
@@ -628,7 +641,8 @@ var AppList = React.createClass({
   _renderLinks: function(app) {
     return (
       <p>
-        <a href={app.linkAppStore} target="blank">iOS</a> -
+        <a href={app.linkAppStore} target="blank">iOS</a>
+        {" - "}
         <a href={app.linkPlayStore} target="blank">Android</a>
       </p>
     );

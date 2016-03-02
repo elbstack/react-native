@@ -1,6 +1,6 @@
 {
   "name": "react-native",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "description": "A framework for building native apps using React",
   "license": "BSD-3-Clause",
   "repository": {
@@ -82,7 +82,7 @@
   "files": [
     "React",
     "React.podspec",
-    "ReactAndroid",
+    "android",
     "Libraries",
     "packager",
     "cli.js",
